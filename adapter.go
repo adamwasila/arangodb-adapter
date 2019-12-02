@@ -30,36 +30,57 @@ import (
 
 type ArangoRule map[string]string
 
-var ErrTooManyArguments error = errors.New("policy has too many arguments")
+var (
+	ErrTooManyArguments      error = errors.New("policy has too many arguments")
+	ErrInvalidPolicyDocument error = errors.New("db document does not match valid policy")
+)
 
 var defaultMapping []string = []string{"PType", "V0", "V1", "V2", "V3", "V4", "V5"}
 
-func newRule(policyType string, values ...string) (ArangoRule, error) {
-	if 1+len(values) > len(defaultMapping) {
-		return nil, ErrTooManyArguments
-	}
-	rule := make(ArangoRule, len(defaultMapping))
-	rule[defaultMapping[0]] = policyType
-	for i, v := range values {
-		rule[defaultMapping[i+1]] = v
-	}
-	return rule, nil
-}
-
 type adapter struct {
-	mapping    []string
-	database   arango.Database
-	query      string
-	collection arango.Collection
+	endpoints      []string
+	mapping        []string
+	collectionName string
+	database       arango.Database
+	query          string
+	collection     arango.Collection
 }
 
-func NewAdapter(urls []string) (persist.Adapter, error) {
-	return NewAdapterWithMapping(urls, defaultMapping)
+type adapterOption func(*adapter)
+
+func OpEndpoints(endpoints ...string) func(*adapter) {
+	return func(a *adapter) {
+		a.endpoints = make([]string, 0, len(endpoints))
+		for _, e := range endpoints {
+			a.endpoints = append(a.endpoints, e)
+		}
+	}
 }
 
-func NewAdapterWithMapping(urls []string, mapping []string) (persist.Adapter, error) {
+func OpCollectionName(collectionName string) func(*adapter) {
+	return func(a *adapter) {
+		a.collectionName = collectionName
+	}
+}
+
+func OpFieldMapping(mapping ...string) func(*adapter) {
+	return func(a *adapter) {
+		a.mapping = mapping
+	}
+}
+
+func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
+	a := adapter{}
+	a.collectionName = "casbin_rules"
+	a.mapping = defaultMapping
+	a.endpoints = []string{"http://127.0.0.1:8529"}
+
+	for _, option := range options {
+		option(&a)
+	}
+
 	conn, err := http.NewConnection(http.ConnectionConfig{
-		Endpoints: urls,
+		Endpoints: a.endpoints,
 	})
 	if err != nil {
 		return nil, err
@@ -76,26 +97,41 @@ func NewAdapterWithMapping(urls []string, mapping []string) (persist.Adapter, er
 	if err != nil {
 		return nil, err
 	}
+	a.database = db
 
-	var queryResult []string = make([]string, 0, len(mapping))
-	for _, v := range mapping {
+	var queryResult []string = make([]string, 0, len(a.mapping))
+	for _, v := range a.mapping {
 		queryResult = append(queryResult, `"`+v+`":d.`+v)
 	}
 
-	col, err := db.Collection(nil, "casbin_rules")
+	a.query = fmt.Sprintf("FOR d IN %s RETURN {%s}", a.collectionName, strings.Join(queryResult, ","))
+
+	exists, err := db.CollectionExists(nil, a.collectionName)
 	if err != nil {
 		return nil, err
 	}
-	return &adapter{
-		mapping:    mapping,
-		database:   db,
-		collection: col,
-		query:      fmt.Sprintf("FOR d IN %s RETURN {%s}", "casbin_rules", strings.Join(queryResult, ",")),
-	}, nil
+	if !exists {
+		_, err := db.CreateCollection(nil, a.collectionName, nil)
+		// 1207 is ERROR_ARANGO_DUPLICATE_NAME - driver has no symbolic wrapper for it for now
+		// ignores error that may happen if collection has been created in the meantime
+		if err != nil && arango.IsArangoErrorWithErrorNum(err, 1207) {
+			return nil, err
+		}
+	}
+
+	col, err := db.Collection(nil, a.collectionName)
+	if err != nil {
+		return nil, err
+	}
+	a.collection = col
+	return &a, nil
 }
 
-func (a *adapter) loadPolicyLine(line ArangoRule, model model.Model) {
+func (a *adapter) loadPolicyLine(line ArangoRule, model model.Model) error {
 	key := line[a.mapping[0]]
+	if key == "" {
+		return ErrInvalidPolicyDocument
+	}
 	sec := key[:1]
 
 	tokens := []string{}
@@ -107,8 +143,12 @@ func (a *adapter) loadPolicyLine(line ArangoRule, model model.Model) {
 		}
 		tokens = append(tokens, value)
 	}
+	if len(tokens) == 0 {
+		return ErrInvalidPolicyDocument
+	}
 
 	model[sec][key].Policy = append(model[sec][key].Policy, tokens)
+	return nil
 }
 
 // LoadPolicy loads policy from database.
@@ -127,37 +167,52 @@ func (a *adapter) LoadPolicy(model model.Model) error {
 		} else if err != nil {
 			return err
 		}
-		a.loadPolicyLine(doc, model)
+		err = a.loadPolicyLine(doc, model)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func savePolicyLine(ptype string, rule []string) ArangoRule {
-	ruleList, _ := newRule(ptype, rule...)
-	return ruleList
+func (a *adapter) savePolicyLine(ptype string, rule []string) (ArangoRule, error) {
+	if 1+len(rule) > len(a.mapping) {
+		return nil, ErrTooManyArguments
+	}
+	ruleList := make(ArangoRule, len(a.mapping))
+	ruleList[a.mapping[0]] = ptype
+	for i, v := range rule {
+		ruleList[a.mapping[i+1]] = v
+	}
+	return ruleList, nil
 }
 
 // SavePolicy saves policy to database.
 func (a *adapter) SavePolicy(model model.Model) error {
-	err := a.collection.Truncate(nil)
-	if err != nil {
-		return err
-	}
-
 	var lines []interface{}
 
 	for ptype, ast := range model["p"] {
 		for _, rule := range ast.Policy {
-			line := savePolicyLine(ptype, rule)
+			line, err := a.savePolicyLine(ptype, rule)
+			if err != nil {
+				return err
+			}
 			lines = append(lines, &line)
 		}
 	}
 
 	for ptype, ast := range model["g"] {
 		for _, rule := range ast.Policy {
-			line := savePolicyLine(ptype, rule)
+			line, err := a.savePolicyLine(ptype, rule)
+			if err != nil {
+				return err
+			}
 			lines = append(lines, &line)
 		}
+	}
+	err := a.collection.Truncate(nil)
+	if err != nil {
+		return err
 	}
 	_, _, err = a.collection.CreateDocuments(nil, lines)
 	return err
@@ -165,8 +220,11 @@ func (a *adapter) SavePolicy(model model.Model) error {
 
 // AddPolicy adds a policy rule to the storage.
 func (a *adapter) AddPolicy(sec string, ptype string, rule []string) error {
-	line := savePolicyLine(ptype, rule)
-	_, err := a.collection.CreateDocument(nil, line)
+	line, err := a.savePolicyLine(ptype, rule)
+	if err != nil {
+		return err
+	}
+	_, err = a.collection.CreateDocument(nil, line)
 	return err
 }
 

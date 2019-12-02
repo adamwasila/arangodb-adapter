@@ -8,7 +8,10 @@ import (
 )
 
 func main() {
-	a, err := arango.NewAdapter([]string{"http://127.0.0.1:8529"})
+	a, err := arango.NewAdapter(
+		arango.OpCollectionName("casbinrules"),
+		arango.OpFieldMapping("p", "sub", "obj", "act"))
+
 	if err != nil {
 		fmt.Printf("Adapter creation error! %s\n", err)
 		return
