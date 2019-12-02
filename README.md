@@ -8,7 +8,7 @@ ArangoDB Adapter is the [Arango DB](https://www.arangodb.com/) adapter for [Casb
 
 - Adapter cleanup (closing connections). See [this issue](https://github.com/arangodb/go-driver/issues/43).
 - ~~Remove hardcoded db & collection names.~~
-- Indexes.
+- ~~Indexes.~~
 - Filtered policies.
 - Policy removal.
 - Unit tests.
