@@ -132,6 +132,11 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 		return nil, err
 	}
 	a.collection = col
+	a.collection.EnsureHashIndex(nil,
+		a.mapping, &arango.EnsureHashIndexOptions{
+			Unique: true,
+			Sparse: true,
+		})
 	return &a, nil
 }
 
