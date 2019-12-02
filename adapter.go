@@ -40,6 +40,7 @@ var defaultMapping []string = []string{"PType", "V0", "V1", "V2", "V3", "V4", "V
 type adapter struct {
 	endpoints      []string
 	mapping        []string
+	dbName         string
 	collectionName string
 	database       arango.Database
 	query          string
@@ -57,6 +58,12 @@ func OpEndpoints(endpoints ...string) func(*adapter) {
 	}
 }
 
+func OpDatabaseName(dbName string) func(*adapter) {
+	return func(a *adapter) {
+		a.dbName = dbName
+	}
+}
+
 func OpCollectionName(collectionName string) func(*adapter) {
 	return func(a *adapter) {
 		a.collectionName = collectionName
@@ -71,6 +78,7 @@ func OpFieldMapping(mapping ...string) func(*adapter) {
 
 func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 	a := adapter{}
+	a.dbName = "casbin"
 	a.collectionName = "casbin_rules"
 	a.mapping = defaultMapping
 	a.endpoints = []string{"http://127.0.0.1:8529"}
@@ -93,7 +101,7 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 	if err != nil {
 		return nil, err
 	}
-	db, err := c.Database(nil, "casbin")
+	db, err := c.Database(nil, a.dbName)
 	if err != nil {
 		return nil, err
 	}
