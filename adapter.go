@@ -44,6 +44,7 @@ type adapter struct {
 	collectionName string
 	database       arango.Database
 	query          string
+	remove         string
 	collection     arango.Collection
 }
 
@@ -108,11 +109,15 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 	a.database = db
 
 	var queryResult []string = make([]string, 0, len(a.mapping))
+	var removePattern []string = make([]string, 0, len(a.mapping))
+
 	for _, v := range a.mapping {
 		queryResult = append(queryResult, `"`+v+`":d.`+v)
+		removePattern = append(removePattern, `d.`+v+`==@`+v)
 	}
 
 	a.query = fmt.Sprintf("FOR d IN %s RETURN {%s}", a.collectionName, strings.Join(queryResult, ","))
+	a.remove = fmt.Sprintf("FOR d IN %s FILTER %s REMOVE d IN %s", a.collectionName, strings.Join(removePattern, " && "), a.collectionName)
 
 	exists, err := db.CollectionExists(nil, a.collectionName)
 	if err != nil {
@@ -241,12 +246,30 @@ func (a *adapter) AddPolicy(sec string, ptype string, rule []string) error {
 	return err
 }
 
+func convertMaps(inputMap map[string]string) map[string]interface{} {
+	outputMap := make(map[string]interface{})
+	for k, v := range inputMap {
+		outputMap[k] = v
+	}
+	return outputMap
+}
+
 // RemovePolicy removes a policy rule from the storage.
 func (a *adapter) RemovePolicy(sec string, ptype string, rule []string) error {
+	arangoRule, err := a.savePolicyLine(ptype, rule)
+	if err != nil {
+		return err
+	}
+
+	cursor, err := a.database.Query(nil, a.remove, convertMaps(arangoRule))
+	if err != nil {
+		return err
+	}
+	cursor.Close()
 	return nil
 }
 
 // RemoveFilteredPolicy removes policy rules that match the filter from the storage.
 func (a *adapter) RemoveFilteredPolicy(sec string, ptype string, fieldIndex int, fieldValues ...string) error {
-	return nil
+	return errors.New("not implemented")
 }
