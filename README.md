@@ -10,7 +10,8 @@ ArangoDB Adapter is the [Arango DB](https://www.arangodb.com/) adapter for [Casb
 - ~~Remove hardcoded db & collection names.~~
 - ~~Indexes.~~
 - Filtered policies.
-- Policy removal.
+- ~~Policy removal.~~
+- Add partial policy removal.
 - Unit tests.
 - Better README (examples of use).
 
