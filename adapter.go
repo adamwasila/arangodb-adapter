@@ -33,6 +33,7 @@ type ArangoRule map[string]string
 var (
 	ErrTooManyArguments      error = errors.New("policy has too many arguments")
 	ErrInvalidPolicyDocument error = errors.New("db document does not match valid policy")
+	ErrTooManyFields         error = errors.New("unmaped values in remove request")
 )
 
 var defaultMapping []string = []string{"PType", "V0", "V1", "V2", "V3", "V4", "V5"}
@@ -45,6 +46,7 @@ type adapter struct {
 	database       arango.Database
 	query          string
 	remove         string
+	removeFiltered string
 	collection     arango.Collection
 }
 
@@ -118,6 +120,7 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 
 	a.query = fmt.Sprintf("FOR d IN %s RETURN {%s}", a.collectionName, strings.Join(queryResult, ","))
 	a.remove = fmt.Sprintf("FOR d IN %s FILTER %s REMOVE d IN %s", a.collectionName, strings.Join(removePattern, " && "), a.collectionName)
+	a.removeFiltered = fmt.Sprintf("FOR d IN %s FILTER %s REMOVE d IN %s", a.collectionName, "%s", a.collectionName)
 
 	exists, err := db.CollectionExists(nil, a.collectionName)
 	if err != nil {
@@ -271,5 +274,20 @@ func (a *adapter) RemovePolicy(sec string, ptype string, rule []string) error {
 
 // RemoveFilteredPolicy removes policy rules that match the filter from the storage.
 func (a *adapter) RemoveFilteredPolicy(sec string, ptype string, fieldIndex int, fieldValues ...string) error {
-	return errors.New("not implemented")
+	if fieldIndex+len(fieldValues) > len(a.mapping) {
+		return ErrTooManyFields
+	}
+	comp := make([]string, 0)
+	bindings := make(map[string]interface{})
+	comp = append(comp, fmt.Sprintf(`d.%s == @ptype`, a.mapping[0]))
+	bindings["ptype"] = ptype
+	for i, fieldValue := range fieldValues {
+		if fieldValue != "" {
+			comp = append(comp, fmt.Sprintf(`d.%s == @%s`, a.mapping[i+fieldIndex+1], a.mapping[i+fieldIndex+1]))
+			bindings[a.mapping[i+fieldIndex+1]] = fieldValue
+		}
+	}
+	query := fmt.Sprintf(a.removeFiltered, strings.Join(comp, " && "))
+	_, err := a.database.Query(nil, query, bindings)
+	return err
 }
