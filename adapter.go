@@ -50,6 +50,7 @@ type adapter struct {
 
 type adapterOption func(*adapter)
 
+// OpEndpoints configures list of endpoints used to connect to ArangoDB; default is: http://127.0.0.1:8529
 func OpEndpoints(endpoints ...string) func(*adapter) {
 	return func(a *adapter) {
 		a.endpoints = make([]string, 0, len(endpoints))
@@ -59,24 +60,31 @@ func OpEndpoints(endpoints ...string) func(*adapter) {
 	}
 }
 
+// OpDatabaseName configures name of database used; default is "casbin"
 func OpDatabaseName(dbName string) func(*adapter) {
 	return func(a *adapter) {
 		a.dbName = dbName
 	}
 }
 
+// OpCollectionName configures name of collection used; default is "casbin_rules"
 func OpCollectionName(collectionName string) func(*adapter) {
 	return func(a *adapter) {
 		a.collectionName = collectionName
 	}
 }
 
+// OpFieldMapping configures mapping to fields used by adapter; default is same used
+// by MongoDB (for eaasy migration): "PType", "V0", "V1", ..., "V6"
 func OpFieldMapping(mapping ...string) func(*adapter) {
 	return func(a *adapter) {
 		a.mapping = mapping
 	}
 }
 
+// NewAdapter creates new instance of adapter. If called with no argument default options are applied.
+// Options may reconfigure all or some parameters to differvent values. See description of each Option
+// for details.
 func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 	a := adapter{}
 	a.dbName = "casbin"
