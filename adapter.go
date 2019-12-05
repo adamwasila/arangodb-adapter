@@ -28,8 +28,6 @@ import (
 	"github.com/casbin/casbin/v2/persist"
 )
 
-type ArangoRule map[string]string
-
 var (
 	ErrTooManyArguments      error = errors.New("policy has too many arguments")
 	ErrInvalidPolicyDocument error = errors.New("db document does not match valid policy")
@@ -148,7 +146,7 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 	return &a, nil
 }
 
-func (a *adapter) loadPolicyLine(line ArangoRule, model model.Model) error {
+func (a *adapter) loadPolicyLine(line map[string]string, model model.Model) error {
 	key := line[a.mapping[0]]
 	if key == "" {
 		return ErrInvalidPolicyDocument
@@ -196,11 +194,11 @@ func (a *adapter) LoadPolicy(model model.Model) error {
 	return nil
 }
 
-func (a *adapter) savePolicyLine(ptype string, rule []string) (ArangoRule, error) {
+func (a *adapter) savePolicyLine(ptype string, rule []string) (map[string]string, error) {
 	if 1+len(rule) > len(a.mapping) {
 		return nil, ErrTooManyArguments
 	}
-	ruleList := make(ArangoRule, len(a.mapping))
+	ruleList := make(map[string]string, len(a.mapping))
 	ruleList[a.mapping[0]] = ptype
 	for i, v := range rule {
 		ruleList[a.mapping[i+1]] = v
