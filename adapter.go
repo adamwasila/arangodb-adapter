@@ -17,6 +17,7 @@ package arangodbadapter
 import (
 	// "errors"
 	// "runtime"
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -54,9 +55,7 @@ type adapterOption func(*adapter)
 func OpEndpoints(endpoints ...string) func(*adapter) {
 	return func(a *adapter) {
 		a.endpoints = make([]string, 0, len(endpoints))
-		for _, e := range endpoints {
-			a.endpoints = append(a.endpoints, e)
-		}
+		a.endpoints = append(a.endpoints, endpoints...)
 	}
 }
 
@@ -110,7 +109,7 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 	if err != nil {
 		return nil, err
 	}
-	db, err := c.Database(nil, a.dbName)
+	db, err := c.Database(context.Background(), a.dbName)
 	if err != nil {
 		return nil, err
 	}
@@ -128,12 +127,12 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 	a.remove = fmt.Sprintf("FOR d IN %s FILTER %s REMOVE d IN %s", a.collectionName, strings.Join(removePattern, " && "), a.collectionName)
 	a.removeFiltered = fmt.Sprintf("FOR d IN %s FILTER %s REMOVE d IN %s", a.collectionName, "%s", a.collectionName)
 
-	exists, err := db.CollectionExists(nil, a.collectionName)
+	exists, err := db.CollectionExists(context.Background(), a.collectionName)
 	if err != nil {
 		return nil, err
 	}
 	if !exists {
-		_, err := db.CreateCollection(nil, a.collectionName, nil)
+		_, err := db.CreateCollection(context.Background(), a.collectionName, nil)
 		// 1207 is ERROR_ARANGO_DUPLICATE_NAME - driver has no symbolic wrapper for it for now
 		// ignores error that may happen if collection has been created in the meantime
 		if err != nil && arango.IsArangoErrorWithErrorNum(err, 1207) {
@@ -141,7 +140,7 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 		}
 	}
 
-	col, err := db.Collection(nil, a.collectionName)
+	col, err := db.Collection(context.Background(), a.collectionName)
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +179,7 @@ func (a *adapter) loadPolicyLine(line map[string]string, model model.Model) erro
 
 // LoadPolicy loads policy from database.
 func (a *adapter) LoadPolicy(model model.Model) error {
-	cursor, err := a.database.Query(nil, a.query, nil)
+	cursor, err := a.database.Query(context.Background(), a.query, nil)
 	if err != nil {
 		return err
 	}
@@ -188,7 +187,7 @@ func (a *adapter) LoadPolicy(model model.Model) error {
 
 	for {
 		var doc map[string]string = make(map[string]string)
-		_, err := cursor.ReadDocument(nil, &doc)
+		_, err := cursor.ReadDocument(context.Background(), &doc)
 		if arango.IsNoMoreDocuments(err) {
 			break
 		} else if err != nil {
@@ -237,11 +236,11 @@ func (a *adapter) SavePolicy(model model.Model) error {
 			lines = append(lines, &line)
 		}
 	}
-	err := a.collection.Truncate(nil)
+	err := a.collection.Truncate(context.Background())
 	if err != nil {
 		return err
 	}
-	_, _, err = a.collection.CreateDocuments(nil, lines)
+	_, _, err = a.collection.CreateDocuments(context.Background(), lines)
 	return err
 }
 
@@ -251,7 +250,7 @@ func (a *adapter) AddPolicy(sec string, ptype string, rule []string) error {
 	if err != nil {
 		return err
 	}
-	_, err = a.collection.CreateDocument(nil, line)
+	_, err = a.collection.CreateDocument(context.Background(), line)
 	return err
 }
 
@@ -270,7 +269,7 @@ func (a *adapter) RemovePolicy(sec string, ptype string, rule []string) error {
 		return err
 	}
 
-	cursor, err := a.database.Query(nil, a.remove, convertMaps(arangoRule))
+	cursor, err := a.database.Query(context.Background(), a.remove, convertMaps(arangoRule))
 	if err != nil {
 		return err
 	}
@@ -294,6 +293,6 @@ func (a *adapter) RemoveFilteredPolicy(sec string, ptype string, fieldIndex int,
 		}
 	}
 	query := fmt.Sprintf(a.removeFiltered, strings.Join(comp, " && "))
-	_, err := a.database.Query(nil, query, bindings)
+	_, err := a.database.Query(context.Background(), query, bindings)
 	return err
 }
