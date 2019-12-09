@@ -105,6 +105,7 @@ func TestArangodbAutoAddAndRemovePolicies(t *testing.T) {
 }
 
 func TestArangodbRemoveFilteredPolicies(t *testing.T) {
+	skipIfNonLocal(t)
 	e1 := prepareAndInitEnforcerUT(t, prepareAdapter(t))
 	addPolicy(t, e1, "xavier", "aaa", "write")
 	addPolicy(t, e1, "yvette", "aaa", "write")
