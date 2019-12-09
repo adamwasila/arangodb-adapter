@@ -145,11 +145,14 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 		return nil, err
 	}
 	a.collection = col
-	a.collection.EnsureHashIndex(nil,
+	_, _, err = a.collection.EnsureHashIndex(context.Background(),
 		a.mapping, &arango.EnsureHashIndexOptions{
 			Unique: true,
 			Sparse: true,
 		})
+	if err != nil {
+		return nil, err
+	}
 	return &a, nil
 }
 
