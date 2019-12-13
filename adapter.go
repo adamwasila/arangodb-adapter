@@ -47,6 +47,7 @@ type adapter struct {
 	remove         string
 	removeFiltered string
 	collection     arango.Collection
+	autocreate     bool
 }
 
 type adapterOption func(*adapter)
@@ -81,6 +82,15 @@ func OpFieldMapping(mapping ...string) func(*adapter) {
 	}
 }
 
+// OpAutocreate enables autocreate mode - both database and collection will be created
+// by adapter if not exist. Should be used with care as each structure is created with
+// driver default options set.
+func OpAutocreate(autocreate bool) func(*adapter) {
+	return func(a *adapter) {
+		a.autocreate = autocreate
+	}
+}
+
 // NewAdapter creates new instance of adapter. If called with no argument default options are applied.
 // Options may reconfigure all or some parameters to differvent values. See description of each Option
 // for details.
@@ -90,6 +100,7 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 	a.collectionName = "casbin_rules"
 	a.mapping = defaultMapping
 	a.endpoints = []string{"http://127.0.0.1:8529"}
+	a.autocreate = true
 
 	for _, option := range options {
 		option(&a)
@@ -110,14 +121,16 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 		return nil, err
 	}
 
-	ex, err := c.DatabaseExists(context.Background(), a.dbName)
-	if err != nil {
-		return nil, err
-	}
-	if !ex {
-		_, err := c.CreateDatabase(context.Background(), a.dbName, nil)
+	if a.autocreate {
+		ex, err := c.DatabaseExists(context.Background(), a.dbName)
 		if err != nil {
 			return nil, err
+		}
+		if !ex {
+			_, err := c.CreateDatabase(context.Background(), a.dbName, nil)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -139,19 +152,20 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 	a.remove = fmt.Sprintf("FOR d IN %s FILTER %s REMOVE d IN %s", a.collectionName, strings.Join(removePattern, " && "), a.collectionName)
 	a.removeFiltered = fmt.Sprintf("FOR d IN %s FILTER %s REMOVE d IN %s", a.collectionName, "%s", a.collectionName)
 
-	exists, err := db.CollectionExists(context.Background(), a.collectionName)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		_, err := db.CreateCollection(context.Background(), a.collectionName, nil)
-		// 1207 is ERROR_ARANGO_DUPLICATE_NAME - driver has no symbolic wrapper for it for now
-		// ignores error that may happen if collection has been created in the meantime
-		if err != nil && arango.IsArangoErrorWithErrorNum(err, 1207) {
+	if a.autocreate {
+		exists, err := db.CollectionExists(context.Background(), a.collectionName)
+		if err != nil {
 			return nil, err
 		}
+		if !exists {
+			_, err := db.CreateCollection(context.Background(), a.collectionName, nil)
+			// 1207 is ERROR_ARANGO_DUPLICATE_NAME - driver has no symbolic wrapper for it for now
+			// ignores error that may happen if collection has been created in the meantime
+			if err != nil && arango.IsArangoErrorWithErrorNum(err, 1207) {
+				return nil, err
+			}
+		}
 	}
-
 	col, err := db.Collection(context.Background(), a.collectionName)
 	if err != nil {
 		return nil, err
