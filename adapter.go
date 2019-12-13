@@ -141,15 +141,13 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 	a.database = db
 
 	var queryResult []string = make([]string, 0, len(a.mapping))
-	var removePattern []string = make([]string, 0, len(a.mapping))
 
 	for _, v := range a.mapping {
 		queryResult = append(queryResult, `"`+v+`":d.`+v)
-		removePattern = append(removePattern, `d.`+v+`==@`+v)
 	}
 
 	a.query = fmt.Sprintf("FOR d IN %s RETURN {%s}", a.collectionName, strings.Join(queryResult, ","))
-	a.remove = fmt.Sprintf("FOR d IN %s FILTER %s REMOVE d IN %s", a.collectionName, strings.Join(removePattern, " && "), a.collectionName)
+	a.remove = fmt.Sprintf("FOR d IN %s FILTER %s REMOVE d IN %s", a.collectionName, "%s", a.collectionName)
 	a.removeFiltered = fmt.Sprintf("FOR d IN %s FILTER %s REMOVE d IN %s", a.collectionName, "%s", a.collectionName)
 
 	if a.autocreate {
@@ -283,22 +281,20 @@ func (a *adapter) AddPolicy(sec string, ptype string, rule []string) error {
 	return err
 }
 
-func convertMaps(inputMap map[string]string) map[string]interface{} {
-	outputMap := make(map[string]interface{})
-	for k, v := range inputMap {
-		outputMap[k] = v
-	}
-	return outputMap
-}
-
 // RemovePolicy removes a policy rule from the storage.
 func (a *adapter) RemovePolicy(sec string, ptype string, rule []string) error {
-	arangoRule, err := a.savePolicyLine(ptype, rule)
-	if err != nil {
-		return err
+	comp := make([]string, 0)
+	bindings := make(map[string]interface{})
+	comp = append(comp, fmt.Sprintf(`d.%s == @ptype`, a.mapping[0]))
+	bindings["ptype"] = ptype
+	for i, fieldValue := range rule {
+		if fieldValue != "" {
+			comp = append(comp, fmt.Sprintf(`d.%s == @%s`, a.mapping[i+1], a.mapping[i+1]))
+			bindings[a.mapping[i+1]] = fieldValue
+		}
 	}
-
-	cursor, err := a.database.Query(context.Background(), a.remove, convertMaps(arangoRule))
+	query := fmt.Sprintf(a.remove, strings.Join(comp, " && "))
+	cursor, err := a.database.Query(context.Background(), query, bindings)
 	if err != nil {
 		return err
 	}
