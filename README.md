@@ -1,6 +1,6 @@
 # ArangoDB Adapter
 
-[![Go Report Card](https://goreportcard.com/badge/adamwasila/arangodb-adapter)](https://goreportcard.com/report/adamwasila/arangodb-adapter) [![Build Status](https://travis-ci.com/adamwasila/arangodb-adapter.svg?branch=master)](https://travis-ci.com/adamwasila/arangodb-adapter)
+[![GoDoc](https://godoc.org/github.com/adamwasila/arangodb-adapter?status.svg)](https://godoc.org/github.com/adamwasila/arangodb-adapter) [![Go Report Card](https://goreportcard.com/badge/adamwasila/arangodb-adapter)](https://goreportcard.com/report/adamwasila/arangodb-adapter) [![Build Status](https://travis-ci.com/adamwasila/arangodb-adapter.svg?branch=master)](https://travis-ci.com/adamwasila/arangodb-adapter)
 
 ArangoDB Adapter is the [Arango DB](https://www.arangodb.com/) adapter for [Casbin](https://github.com/casbin/casbin).
 
@@ -16,6 +16,24 @@ ArangoDB Adapter is the [Arango DB](https://www.arangodb.com/) adapter for [Casb
 - ~~Add partial policy removal.~~
 - Unit tests.
 - Better README (examples of use).
+
+## Example
+
+Following snippet of code shows how to initialize adapter and use with casbin enforcer. See [documentation](https://godoc.org/github.com/adamwasila/arangodb-adapter) for list of all available options.
+
+```golang
+a, err := arango.NewAdapter(
+    arango.OpCollectionName("casbinrules"),
+    arango.OpFieldMapping("p", "sub", "obj", "act"))
+if err != nil {
+    ...
+}
+
+e, err := casbin.NewEnforcer("model.conf", a)
+
+...
+
+```
 
 ## Getting Help
 
