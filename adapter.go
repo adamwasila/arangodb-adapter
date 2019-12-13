@@ -109,6 +109,18 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	ex, err := c.DatabaseExists(context.Background(), a.dbName)
+	if err != nil {
+		return nil, err
+	}
+	if !ex {
+		_, err := c.CreateDatabase(context.Background(), a.dbName, nil)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	db, err := c.Database(context.Background(), a.dbName)
 	if err != nil {
 		return nil, err
