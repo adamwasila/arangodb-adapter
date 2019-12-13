@@ -92,7 +92,7 @@ func OpAutocreate(autocreate bool) func(*adapter) {
 }
 
 // NewAdapter creates new instance of adapter. If called with no argument default options are applied.
-// Options may reconfigure all or some parameters to differvent values. See description of each Option
+// Options may reconfigure all or some parameters to different values. See description of each Option
 // for details.
 func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 	a := adapter{}
