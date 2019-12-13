@@ -66,13 +66,13 @@ func TestArangodbSaveAndLoadPolicies(t *testing.T) {
 
 	err := e1.SavePolicy()
 	if err != nil {
-		t.Fatalf("Could not create adapter")
+		t.Fatalf("Could not create adapter: %v", err)
 	}
 
 	e2.ClearPolicy()
 	err = e2.LoadPolicy()
 	if err != nil {
-		t.Fatalf("Could not create adapter")
+		t.Fatalf("Could not create adapter: %v", err)
 	}
 
 	p1 := e1.GetModel()["p"]["p"].Policy
@@ -173,11 +173,11 @@ m = g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act
 func prepareEnforcerUT(t *testing.T, a persist.Adapter) *casbin.Enforcer {
 	m, err := model.NewModelFromString(rbacModel)
 	if err != nil {
-		t.Fatal("Could not create casbin model")
+		t.Fatalf("Could not create casbin model: %v", err)
 	}
 	e, err := casbin.NewEnforcer(m)
 	if err != nil {
-		t.Fatal("Could not create casbin enforcer")
+		t.Fatalf("Could not create casbin enforcer: %v", err)
 	}
 	if a != nil {
 		e.SetAdapter(a)
@@ -219,7 +219,7 @@ func prepareAndInitEnforcerUT(t *testing.T, a persist.Adapter) *casbin.Enforcer 
 func prepareAdapter(t *testing.T) persist.Adapter {
 	a, err := NewAdapter(OpCollectionName("casbin_tests"))
 	if err != nil {
-		t.Fatalf("Could not create adapter")
+		t.Fatalf("Could not create adapter: %s", err.Error())
 	}
 	return a
 }
