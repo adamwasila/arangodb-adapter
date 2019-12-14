@@ -2,3 +2,9 @@ language: go
 go:
  - "1.13"
  - "1.12"
+
+services:
+  - docker
+
+before_script:
+  - docker run -e ARANGO_NO_AUTH=1 -p 127.0.0.1:8529:8529 -d --name arangodb-instance arangodb:3.5.3
