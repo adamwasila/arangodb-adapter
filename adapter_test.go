@@ -15,7 +15,6 @@
 package arangodbadapter
 
 import (
-	"os"
 	"reflect"
 	"testing"
 
@@ -23,12 +22,6 @@ import (
 	"github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
 )
-
-func skipIfNonLocal(t *testing.T) {
-	if os.Getenv("LOCAL") == "" {
-		t.Skip("Tests skipped for non-local run")
-	}
-}
 
 var operatorstests = []struct {
 	name string
@@ -48,7 +41,6 @@ var operatorstests = []struct {
 }
 
 func TestArangodbNewAdapter(t *testing.T) {
-	skipIfNonLocal(t)
 	for _, tt := range operatorstests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := NewAdapter(tt.in...)
@@ -60,7 +52,6 @@ func TestArangodbNewAdapter(t *testing.T) {
 }
 
 func TestArangodbSaveAndLoadPolicies(t *testing.T) {
-	skipIfNonLocal(t)
 	e1 := prepareAndInitEnforcerUT(t, prepareAdapter(t))
 	e2 := prepareEnforcerUT(t, prepareAdapter(t))
 
@@ -90,7 +81,6 @@ func TestArangodbSaveAndLoadPolicies(t *testing.T) {
 }
 
 func TestArangodbAutoAddAndRemovePolicies(t *testing.T) {
-	skipIfNonLocal(t)
 	e1 := prepareAndInitEnforcerUT(t, prepareAdapter(t))
 	e1.EnableAutoSave(true)
 	e1.ClearPolicy()
@@ -105,7 +95,6 @@ func TestArangodbAutoAddAndRemovePolicies(t *testing.T) {
 }
 
 func TestArangodbRemoveFilteredPolicies(t *testing.T) {
-	skipIfNonLocal(t)
 	e1 := prepareAndInitEnforcerUT(t, prepareAdapter(t))
 	addPolicy(t, e1, "xavier", "aaa", "write")
 	addPolicy(t, e1, "yvette", "aaa", "write")
