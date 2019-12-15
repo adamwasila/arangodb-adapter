@@ -32,11 +32,13 @@ var operatorstests = []struct {
 	{"Custom Database Name", []adapterOption{OpDatabaseName("casbin")}, nil},
 	{"Custom Collection Name", []adapterOption{OpCollectionName("casbin_rules")}, nil},
 	{"Custom Field Mapping", []adapterOption{OpFieldMapping("p", "sub", "obj", "act")}, nil},
+	{"Autocreate", []adapterOption{OpAutocreate(false)}, nil},
 	{"All Ops Together", []adapterOption{
 		OpEndpoints("http://localhost:8529"),
 		OpFieldMapping("p", "sub", "obj", "act"),
 		OpDatabaseName("casbin"),
 		OpCollectionName("casbin_rules_tests"),
+		OpAutocreate(true),
 		OpFieldMapping("p", "sub", "obj", "act")}, nil},
 }
 
