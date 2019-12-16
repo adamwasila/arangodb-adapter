@@ -15,12 +15,17 @@
 package arangodbadapter
 
 import (
-	"reflect"
+	"context"
+	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
+	"github.com/arangodb/go-driver"
 	"github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
+	. "github.com/smartystreets/goconvey/convey"
 )
 
 var operatorstests = []struct {
@@ -53,96 +58,196 @@ func TestArangodbNewAdapter(t *testing.T) {
 	}
 }
 
-func TestArangodbSaveAndLoadPolicies(t *testing.T) {
-	e1 := prepareAndInitEnforcerUT(t, prepareAdapter(t))
-	e2 := prepareEnforcerUT(t, prepareAdapter(t))
+func TestArangodbLoad(t *testing.T) {
+	Convey("Given arangodb adapter", t, func() {
+		ad, err := NewAdapter(
+			OpFieldMapping("Type", "Arg0", "Arg1", "Arg2"),
+			OpCollectionName("casbin_TestArangodbLoad"),
+		)
+		So(err, ShouldBeNil)
 
-	err := e1.SavePolicy()
-	if err != nil {
-		t.Fatalf("Could not create adapter: %v", err)
-	}
+		Convey("And casbin enforcer using that adapter", func() {
+			enforcer, err := newEnforcer()
+			So(err, ShouldBeNil)
+			enforcer.SetAdapter(ad)
 
-	e2.ClearPolicy()
-	err = e2.LoadPolicy()
-	if err != nil {
-		t.Fatalf("Could not create adapter: %v", err)
-	}
+			Reset(func() {
+				err = truncateCollection(ad)
+				So(err, ShouldBeNil)
+			})
 
-	p1 := e1.GetModel()["p"]["p"].Policy
-	p2 := e2.GetModel()["p"]["p"].Policy
-	g1 := e1.GetModel()["g"]["g"].Policy
-	g2 := e2.GetModel()["g"]["g"].Policy
+			Convey("When database is initialized with fixtures", func() {
 
-	if !reflect.DeepEqual(p1, p2) {
-		t.Fatalf("Saved and loaded policies are not equal: %#v & %#v", p1, p2)
-	}
+				err = loadFixtures(ad, []string{
+					"p,ADMIN,update,crazyBook",
+					"p,ADMIN,truncate,crazyBook",
+					"p,USER,insert,crazyBook",
+				})
+				So(err, ShouldBeNil)
 
-	if !reflect.DeepEqual(g1, g2) {
-		t.Fatalf("Saved and loaded group policies are not equal: %#v & %#v", g1, g2)
-	}
+				err = enforcer.LoadPolicy()
+				So(err, ShouldBeNil)
+
+				Convey("Enforcer should sucessfully enforce against all policies", func() {
+					result, err := enforcer.Enforce("ADMIN", "update", "crazyBook")
+					So(err, ShouldBeNil)
+					So(result, ShouldBeTrue)
+
+					result, err = enforcer.Enforce("ADMIN", "truncate", "crazyBook")
+					So(err, ShouldBeNil)
+					So(result, ShouldBeTrue)
+
+					result, err = enforcer.Enforce("USER", "insert", "crazyBook")
+					So(err, ShouldBeNil)
+					So(result, ShouldBeTrue)
+				})
+			})
+		})
+	})
 }
 
-func TestArangodbAutoAddAndRemovePolicies(t *testing.T) {
-	e1 := prepareAndInitEnforcerUT(t, prepareAdapter(t))
-	e1.EnableAutoSave(true)
-	e1.ClearPolicy()
-	r := addPolicy(t, e1, "xavier", "aaa", "write")
-	if !r {
-		t.Errorf("Could not auto add policy")
-	}
-	r = removePolicy(t, e1, "xavier", "aaa", "write")
-	if !r {
-		t.Errorf("Could not auto remove policy")
-	}
+func TestArangodbSave(t *testing.T) {
+	Convey("Given arangodb adapter", t, func() {
+		ad, err := NewAdapter(
+			OpFieldMapping("Type", "Arg0", "Arg1", "Arg2"),
+			OpCollectionName("casbin_TestArangodbSave"),
+		)
+		So(err, ShouldBeNil)
+		Convey("And casbin enforcer using that adapter", func() {
+			enforcer, err := newEnforcer()
+			So(err, ShouldBeNil)
+			enforcer.SetAdapter(ad)
+
+			Reset(func() {
+				err = truncateCollection(ad)
+				So(err, ShouldBeNil)
+			})
+
+			Convey("When policies are added and saved", func() {
+				_, err = enforcer.AddPolicy("ADMIN", "write", "book")
+				So(err, ShouldBeNil)
+				_, err = enforcer.AddPolicy("USER", "read", "book")
+				So(err, ShouldBeNil)
+				_, err = enforcer.AddGroupingPolicy("adam", "ADMIN")
+				So(err, ShouldBeNil)
+				_, err = enforcer.AddGroupingPolicy("beata", "USER")
+				So(err, ShouldBeNil)
+
+				err := enforcer.SavePolicy()
+				So(err, ShouldBeNil)
+
+				Convey("Database should have policies saved", func() {
+					content, err := getAllDbContent(ad)
+					So(err, ShouldBeNil)
+					So(content, ShouldResemble, map[string]bool{
+						"p,ADMIN,write,book": true,
+						"p,USER,read,book":   true,
+						"g,adam,ADMIN":       true,
+						"g,beata,USER":       true,
+					})
+				})
+			})
+
+			Convey("When policies are added and removed", func() {
+				_, err = enforcer.AddPolicy("USER", "read", "emptyBook")
+				So(err, ShouldBeNil)
+				_, err = enforcer.AddPolicy("ADMIN", "write", "emptyBook")
+				So(err, ShouldBeNil)
+
+				err = enforcer.SavePolicy()
+				So(err, ShouldBeNil)
+
+				_, err = enforcer.RemovePolicy("ADMIN", "write", "emptyBook")
+				So(err, ShouldBeNil)
+
+				err = enforcer.SavePolicy()
+				So(err, ShouldBeNil)
+
+				Convey("Database should have policies saved", func() {
+					content, err := getAllDbContent(ad)
+					So(err, ShouldBeNil)
+					So(content, ShouldResemble, map[string]bool{
+						"p,USER,read,emptyBook": true,
+					})
+				})
+			})
+		})
+
+		Convey("And casbin enforcer (using that adapter) with AUTOSAVE enabled", func() {
+			enforcer, err := newEnforcer()
+			So(err, ShouldBeNil)
+			enforcer.SetAdapter(ad)
+			enforcer.EnableAutoSave(true)
+
+			Reset(func() {
+				err = truncateCollection(ad)
+				So(err, ShouldBeNil)
+			})
+
+			Convey("When policies are added", func() {
+				_, err = enforcer.AddPolicy("ADMIN", "write", "emptyBook")
+				So(err, ShouldBeNil)
+				_, err = enforcer.AddPolicy("USER", "read", "emptyBook")
+				So(err, ShouldBeNil)
+				_, err = enforcer.AddGroupingPolicy("cezary", "USER")
+				So(err, ShouldBeNil)
+				_, err = enforcer.AddGroupingPolicy("diana", "ADMIN")
+				So(err, ShouldBeNil)
+
+				Convey("Database should have policies saved", func() {
+					content, err := getAllDbContent(ad)
+					So(err, ShouldBeNil)
+					So(content, ShouldResemble, map[string]bool{
+						"p,ADMIN,write,emptyBook": true,
+						"p,USER,read,emptyBook":   true,
+						"g,diana,ADMIN":           true,
+						"g,cezary,USER":           true,
+					})
+				})
+			})
+
+			Convey("When policies are added then some removed", func() {
+				_, err = enforcer.AddPolicy("USER", "read", "emptyBook")
+				So(err, ShouldBeNil)
+				_, err = enforcer.AddPolicy("ADMIN", "write", "emptyBook")
+				So(err, ShouldBeNil)
+				_, err = enforcer.RemovePolicy("ADMIN", "write", "emptyBook")
+				So(err, ShouldBeNil)
+
+				Convey("Database should have policies saved", func() {
+					content, err := getAllDbContent(ad)
+					So(err, ShouldBeNil)
+					So(content, ShouldResemble, map[string]bool{
+						"p,USER,read,emptyBook": true,
+					})
+				})
+			})
+
+			Convey("When policies are added then some removed with RemoveFilteredPolicy", func() {
+				_, err = enforcer.AddPolicy("USER", "read", "emptyBook")
+				So(err, ShouldBeNil)
+				_, err = enforcer.AddPolicy("ADMIN", "write", "emptyBook")
+				So(err, ShouldBeNil)
+				_, err = enforcer.AddPolicy("ADMIN", "write", "plainBook")
+				So(err, ShouldBeNil)
+				_, err = enforcer.RemoveFilteredPolicy(2, "emptyBook")
+				So(err, ShouldBeNil)
+
+				Convey("Database should have policies saved", func() {
+					content, err := getAllDbContent(ad)
+					So(err, ShouldBeNil)
+					So(content, ShouldResemble, map[string]bool{
+						"p,ADMIN,write,plainBook": true,
+					})
+				})
+			})
+
+		})
+
+	})
 }
 
-func TestArangodbRemoveFilteredPolicies(t *testing.T) {
-	e1 := prepareAndInitEnforcerUT(t, prepareAdapter(t))
-	addPolicy(t, e1, "xavier", "aaa", "write")
-	addPolicy(t, e1, "yvette", "aaa", "write")
-	addPolicy(t, e1, "zuzanna", "aaa", "write")
-	err := e1.SavePolicy()
-	if err != nil {
-		t.Fatalf("Could not add policy")
-	}
-	e1.EnableAutoSave(true)
-	_, err = e1.RemoveFilteredPolicy(1, "aaa")
-	if err != nil {
-		t.Fatalf("Could not remove filtered policy")
-	}
-	e1.LoadPolicy()
-
-	e2 := prepareAndInitEnforcerUT(t, nil)
-
-	p1 := e1.GetModel()["p"]["p"].Policy
-	p2 := e2.GetModel()["p"]["p"].Policy
-	g1 := e1.GetModel()["g"]["g"].Policy
-	g2 := e2.GetModel()["g"]["g"].Policy
-
-	if !reflect.DeepEqual(p1, p2) {
-		t.Fatalf("Saved and loaded policies are not equal: %#v & %#v", p1, p2)
-	}
-
-	if !reflect.DeepEqual(g1, g2) {
-		t.Fatalf("Saved and loaded group policies are not equal: %#v & %#v", g1, g2)
-	}
-}
-
-func addPolicy(t *testing.T, e *casbin.Enforcer, policy ...string) bool {
-	r, err := e.AddPolicy(policy)
-	if err != nil {
-		t.Fatalf("Could not add policy: %v", err)
-	}
-	return r
-}
-
-func removePolicy(t *testing.T, e *casbin.Enforcer, policy ...string) bool {
-	r, err := e.RemovePolicy(policy)
-	if err != nil {
-		t.Fatalf("Could not remove policy: %v", err)
-	}
-	return r
-}
+// ====== end of test cases ======
 
 var rbacModel = `
 [request_definition]
@@ -161,56 +266,104 @@ e = some(where (p.eft == allow))
 m = g(r.sub, p.sub) && r.obj == p.obj && r.act == p.act
 `
 
-func prepareEnforcerUT(t *testing.T, a persist.Adapter) *casbin.Enforcer {
+func newEnforcer() (*casbin.Enforcer, error) {
 	m, err := model.NewModelFromString(rbacModel)
 	if err != nil {
-		t.Fatalf("Could not create casbin model: %v", err)
+		return nil, err
 	}
 	e, err := casbin.NewEnforcer(m)
 	if err != nil {
-		t.Fatalf("Could not create casbin enforcer: %v", err)
+		return nil, err
 	}
-	if a != nil {
-		e.SetAdapter(a)
-	}
-	e.EnableAutoSave(false)
-
-	return e
+	return e, nil
 }
 
-func prepareAndInitEnforcerUT(t *testing.T, a persist.Adapter) *casbin.Enforcer {
-	e := prepareEnforcerUT(t, a)
-
-	for _, v := range [][]interface{}{
-		{"ADMIN", "read", "book1"},
-		{"ADMIN", "write", "book1"},
-		{"USER", "read", "book2"},
-		{"GUEST", "read", "book3"},
-	} {
-		_, err := e.AddPolicy(v...)
-		if err != nil {
-			t.Fatal("Error adding policy")
-		}
-	}
-
-	for _, v := range [][]interface{}{
-		{"anastazja", "ADMIN"},
-		{"urszula", "USER"},
-		{"genowefa", "GUEST"},
-	} {
-		_, err := e.AddGroupingPolicy(v...)
-		if err != nil {
-			t.Fatal("Error adding grouping policy")
-		}
-	}
-
-	return e
+type testPolicy struct {
+	Type string
+	Arg0 string
+	Arg1 string
+	Arg2 string
 }
 
-func prepareAdapter(t *testing.T) persist.Adapter {
-	a, err := NewAdapter(OpCollectionName("casbin_tests"))
+func newFromString(s string) testPolicy {
+	ss := strings.Split(s, ",")
+	tp := testPolicy{}
+	if len(ss) >= 1 {
+		tp.Type = ss[0]
+	}
+	if len(ss) >= 2 {
+		tp.Arg0 = ss[1]
+	}
+	if len(ss) >= 3 {
+		tp.Arg1 = ss[2]
+	}
+	if len(ss) >= 4 {
+		tp.Arg2 = ss[3]
+	}
+	return tp
+}
+
+func (p *testPolicy) String() string {
+	result := p.Type
+	if p.Arg0 != "" {
+		result = result + "," + p.Arg0
+	}
+	if p.Arg1 != "" {
+		result = result + "," + p.Arg1
+	}
+	if p.Arg2 != "" {
+		result = result + "," + p.Arg2
+	}
+	return result
+}
+
+func getAllDbContent(ad persist.Adapter) (map[string]bool, error) {
+	a, ok := ad.(*adapter)
+	if !ok {
+		return nil, errors.New("Adapter is not arangodb.adapter type as expected")
+	}
+
+	query := fmt.Sprintf("FOR d IN %s LIMIT 100 RETURN d", a.collectionName)
+	cursor, err := a.database.Query(context.Background(), query, nil)
 	if err != nil {
-		t.Fatalf("Could not create adapter: %s", err.Error())
+		return nil, err
 	}
-	return a
+	defer cursor.Close()
+	result := make(map[string]bool)
+	for {
+		tp := testPolicy{}
+		_, err := cursor.ReadDocument(context.Background(), &tp)
+		if driver.IsNoMoreDocuments(err) {
+			break
+		} else if err != nil {
+			return nil, err
+		}
+
+		result[tp.String()] = true
+	}
+	return result, nil
+}
+
+func truncateCollection(ad persist.Adapter) error {
+	a, ok := ad.(*adapter)
+	if !ok {
+		return errors.New("Adapter is not arangodb.adapter type as expected")
+	}
+	err := a.collection.Truncate(context.Background())
+	return err
+}
+
+func loadFixtures(ad persist.Adapter, fixtures []string) error {
+	a, ok := ad.(*adapter)
+	if !ok {
+		return errors.New("Adapter is not arangodb.adapter type as expected")
+	}
+	for _, line := range fixtures {
+		testPolicy := newFromString(line)
+		_, err := a.collection.CreateDocument(context.Background(), &testPolicy)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
