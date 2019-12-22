@@ -15,8 +15,6 @@
 package arangodbadapter
 
 import (
-	// "errors"
-	// "runtime"
 	"context"
 	"errors"
 	"fmt"
