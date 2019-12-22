@@ -4,8 +4,6 @@
 
 ArangoDB Adapter is the [Arango DB](https://www.arangodb.com/) adapter for [Casbin](https://github.com/casbin/casbin).
 
-> **WARNING**: this is merely a hack; product of few hours spent learning go driver for arango, arango itself and adopting it to casbin needs. Definitely not a "production ready" quality yet. Use at your own risk.
-
 ## TODO
 
 - Adapter cleanup (closing connections). See [this issue](https://github.com/arangodb/go-driver/issues/43).
@@ -14,7 +12,7 @@ ArangoDB Adapter is the [Arango DB](https://www.arangodb.com/) adapter for [Casb
 - Filtered policies.
 - ~~Policy removal.~~
 - ~~Add partial policy removal.~~
-- Unit tests.
+- ~~Unit tests.~~
 - Better README (examples of use).
 
 ## Example
@@ -35,9 +33,23 @@ e, err := casbin.NewEnforcer("model.conf", a)
 
 ```
 
+## Contributing
+
+### Documentation
+
+Currently this README and examples folder are best source of documentation for this project and of course - source code itself.
+
+### Reporting issues
+
+Raise an issue for bugs, enhancements and general discussions/questions about adapter.
+
+### Pull requests
+
+If possible each PR should be linked to some issue (except trivial ones like typo fixes). Avoid unrelated changes. Redundant commits should be squashed together before merge.
+
 ## Getting Help
 
-- [Casbin](https://github.com/casbin/casbin)
+- [Casbin](https://github.com/casbin/casbin) - main library this adapter is extending
 
 ## License
 
