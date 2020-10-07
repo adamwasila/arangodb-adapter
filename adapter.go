@@ -41,6 +41,8 @@ type adapter struct {
 	dbName         string
 	collectionName string
 	database       arango.Database
+	dbUser         string
+	dbPasswd       string
 	query          string
 	remove         string
 	removeFiltered string
@@ -62,6 +64,14 @@ func OpEndpoints(endpoints ...string) func(*adapter) {
 func OpDatabaseName(dbName string) func(*adapter) {
 	return func(a *adapter) {
 		a.dbName = dbName
+	}
+}
+
+// OpBasicAuthCredentials configures username and password of database used; default is ""
+func OpBasicAuthCredentials(user, passwd string) func(*adapter) {
+	return func(a *adapter) {
+		a.dbUser = user
+		a.dbPasswd = passwd
 	}
 }
 
@@ -109,6 +119,10 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 	})
 	if err != nil {
 		return nil, err
+	}
+	if a.dbUser != "" {
+		auth := arango.BasicAuthentication(a.dbUser, a.dbPasswd)
+		conn.SetAuthentication(auth)
 	}
 	c, err := arango.NewClient(
 		arango.ClientConfig{
