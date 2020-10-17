@@ -29,16 +29,26 @@ import (
 )
 
 var operatorstests = []struct {
-	name string
-	in   []adapterOption
-	out  error
+	name        string
+	in          []adapterOption
+	expectedErr func(error) bool
 }{
 	{"Custom Endpoint", []adapterOption{OpEndpoints("http://localhost:8529")}, nil},
 	{"Custom Database Name", []adapterOption{OpDatabaseName("casbin")}, nil},
 	{"Custom Collection Name", []adapterOption{OpCollectionName("casbin_rules")}, nil},
 	{"Custom Field Mapping", []adapterOption{OpFieldMapping("p", "sub", "obj", "act")}, nil},
 	{"Autocreate", []adapterOption{OpAutocreate(false)}, nil},
-	{"Basic Auth Credentials", []adapterOption{OpBasicAuthCredentials("user", "password")}, nil},
+	{"Basic Auth Credentials", []adapterOption{OpBasicAuthCredentials("root", "password")}, nil},
+	{"Basic Auth Credentials - passing wrong credentials to database with auth", []adapterOption{
+		OpEndpoints("http://localhost:8530"),
+		OpBasicAuthCredentials("root", "wrongpassword"),
+	}, func(err error) bool {
+		return driver.IsUnauthorized(err)
+	}},
+	{"Basic Auth Credentials - passing good credentials to database with auth", []adapterOption{
+		OpEndpoints("http://localhost:8530"),
+		OpBasicAuthCredentials("root", "password"),
+	}, nil},
 	{"All Ops Together", []adapterOption{
 		OpEndpoints("http://localhost:8529"),
 		OpFieldMapping("p", "sub", "obj", "act"),
@@ -46,7 +56,7 @@ var operatorstests = []struct {
 		OpCollectionName("casbin_rules_tests"),
 		OpAutocreate(true),
 		OpFieldMapping("p", "sub", "obj", "act"),
-		OpBasicAuthCredentials("user", "password"),
+		OpBasicAuthCredentials("root", "password"),
 	}, nil},
 }
 
@@ -54,8 +64,11 @@ func TestArangodbNewAdapter(t *testing.T) {
 	for _, tt := range operatorstests {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := NewAdapter(tt.in...)
-			if err != tt.out {
-				t.Fatalf("Unexpected result: %v", err)
+			if tt.expectedErr == nil && err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if tt.expectedErr != nil && !tt.expectedErr(err) {
+				t.Fatalf("Error other than expected: %v", err)
 			}
 		})
 	}
