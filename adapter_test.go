@@ -38,13 +38,16 @@ var operatorstests = []struct {
 	{"Custom Collection Name", []adapterOption{OpCollectionName("casbin_rules")}, nil},
 	{"Custom Field Mapping", []adapterOption{OpFieldMapping("p", "sub", "obj", "act")}, nil},
 	{"Autocreate", []adapterOption{OpAutocreate(false)}, nil},
+	{"Basic Auth Credentials", []adapterOption{OpBasicAuthCredentials("user", "password")}, nil},
 	{"All Ops Together", []adapterOption{
 		OpEndpoints("http://localhost:8529"),
 		OpFieldMapping("p", "sub", "obj", "act"),
 		OpDatabaseName("casbin"),
 		OpCollectionName("casbin_rules_tests"),
 		OpAutocreate(true),
-		OpFieldMapping("p", "sub", "obj", "act")}, nil},
+		OpFieldMapping("p", "sub", "obj", "act"),
+		OpBasicAuthCredentials("user", "password"),
+	}, nil},
 }
 
 func TestArangodbNewAdapter(t *testing.T) {
