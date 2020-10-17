@@ -122,7 +122,10 @@ func NewAdapter(options ...adapterOption) (persist.Adapter, error) {
 	}
 	if a.dbUser != "" {
 		auth := arango.BasicAuthentication(a.dbUser, a.dbPasswd)
-		conn.SetAuthentication(auth)
+		_, err := conn.SetAuthentication(auth)
+		if err != nil {
+			return nil, err
+		}
 	}
 	c, err := arango.NewClient(
 		arango.ClientConfig{
