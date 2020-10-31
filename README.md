@@ -43,6 +43,22 @@ Currently this README and examples folder are best source of documentation for t
 
 Raise an issue for bugs, enhancements and general discussions/questions about adapter.
 
+### Running tests
+
+It would make very little sense to perform an isolated unit tests for code like that. Therefore tests connects to real database instance. To test fully all options two instances must be run: with and without authorization. [CI setup](.travis.yml) may be helpful to establish working testing rig:
+
+```console
+docker run -e ARANGO_NO_AUTH=1 -p 127.0.0.1:8529:8529 -d --name arangodb-instance-no-auth arangodb:3.7.2
+docker run -e ARANGO_ROOT_PASSWORD=password -p 127.0.0.1:8530:8529 -d --name arangodb-instance-auth arangodb:3.7.2
+```
+
+Then, running tests is as simple as:
+
+```
+go test .
+ok  	github.com/adamwasila/arangodb-adapter	0.847s
+```
+
 ### Pull requests
 
 If possible each PR should be linked to some issue (except trivial ones like typo fixes). Avoid unrelated changes. Redundant commits should be squashed together before merge.
