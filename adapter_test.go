@@ -28,6 +28,64 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
+func ExampleNewAdapter() {
+	a, err := NewAdapter(
+		OpCollectionName("casbinrules_example"),
+		OpFieldMapping("p", "sub", "obj", "act"))
+
+	if err != nil {
+		fmt.Printf("Adapter creation error! %s\n", err)
+		return
+	}
+
+	m, err := model.NewModelFromString(`
+	[request_definition]
+	r = sub, obj, act
+	
+	[policy_definition]
+	p = sub, obj, act
+	
+	[policy_effect]
+	e = some(where (p.eft == allow))
+	
+	[matchers]
+	m = r.sub == p.sub && r.obj == p.obj && r.act == p.act
+	`)
+	if err != nil {
+		fmt.Printf("Enforcer creation error! %s\n", err)
+		return
+	}
+
+	e, err := casbin.NewEnforcer(m, a)
+	if err != nil {
+		fmt.Printf("Enforcer creation error! %s\n", err)
+		return
+	}
+	err = e.LoadPolicy()
+	if err != nil {
+		fmt.Printf("Load policy error! %s\n", err)
+		return
+	}
+
+	sub, obj, act := "adam", "data1", "read"
+
+	_, _ = e.AddPolicy("adam", "data1", "read")
+	_ = e.SavePolicy()
+
+	r, err := e.Enforce(sub, obj, act)
+	if err != nil {
+		fmt.Printf("Failed to enforce! %s\n", err)
+		return
+	}
+	if !r {
+		fmt.Printf("%s %s %s: Forbidden!\n", sub, obj, act)
+	} else {
+		fmt.Printf("%s %s %s: Access granted\n", sub, obj, act)
+	}
+	// Output:
+	// adam data1 read: Access granted
+}
+
 func TestArangodbNewAdapter(t *testing.T) {
 	var operatorstests = []struct {
 		name        string
