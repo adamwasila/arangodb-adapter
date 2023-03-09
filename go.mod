@@ -1,6 +1,6 @@
 module github.com/adamwasila/arangodb-adapter
 
-go 1.13
+go 1.19
 
 require (
 	github.com/arangodb/go-driver v1.5.2
