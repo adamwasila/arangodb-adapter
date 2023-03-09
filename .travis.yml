@@ -6,5 +6,5 @@ services:
   - docker
 
 before_script:
-  - docker run -e ARANGO_NO_AUTH=1 -p 127.0.0.1:8529:8529 -d --name arangodb-instance-no-auth arangodb:3.7.2
-  - docker run -e ARANGO_ROOT_PASSWORD=password -p 127.0.0.1:8530:8529 -d --name arangodb-instance-auth arangodb:3.7.2
+  - docker run -e ARANGO_NO_AUTH=1 -p 127.0.0.1:8529:8529 -d --name arangodb-instance-no-auth arangodb:3.10.4
+  - docker run -e ARANGO_ROOT_PASSWORD=password -p 127.0.0.1:8530:8529 -d --name arangodb-instance-auth arangodb:3.10.4
