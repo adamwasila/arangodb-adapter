@@ -1,6 +1,6 @@
 # ArangoDB Adapter
 
-[![GoDoc](https://godoc.org/github.com/adamwasila/arangodb-adapter?status.svg)](https://godoc.org/github.com/adamwasila/arangodb-adapter) [![Go Report Card](https://goreportcard.com/badge/adamwasila/arangodb-adapter)](https://goreportcard.com/report/adamwasila/arangodb-adapter) [![Build Status](https://travis-ci.com/adamwasila/arangodb-adapter.svg?branch=master)](https://travis-ci.com/adamwasila/arangodb-adapter)
+[![GoDoc](https://godoc.org/github.com/adamwasila/arangodb-adapter?status.svg)](https://godoc.org/github.com/adamwasila/arangodb-adapter) [![Go Report Card](https://goreportcard.com/badge/adamwasila/arangodb-adapter)](https://goreportcard.com/report/adamwasila/arangodb-adapter) [![Build Status](https://github.com/adamwasila/arangodb-adapter/actions/workflows/main.yml/badge.svg)](https://github.com/adamwasila/arangodb-adapter/actions/workflows/main.yml)
 
 ArangoDB Adapter is the [Arango DB](https://www.arangodb.com/) adapter for [Casbin](https://github.com/casbin/casbin).
 
