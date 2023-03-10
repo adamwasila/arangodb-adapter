@@ -45,7 +45,7 @@ Raise an issue for bugs, enhancements and general discussions/questions about ad
 
 ### Running tests
 
-It would make very little sense to perform an isolated unit tests for code like that. Therefore tests connects to real database instance. To test fully all options two instances must be run: with and without authorization. [CI setup](.travis.yml) may be helpful to establish working testing rig:
+It would make very little sense to perform an isolated unit tests for code like that. Therefore tests connects to real database instance. To test fully all options two instances must be run: with and without authorization. [CI setup](.github/workflows/main.yml) may be helpful to establish working testing rig:
 
 ```console
 docker run -e ARANGO_NO_AUTH=1 -p 127.0.0.1:8529:8529 -d --name arangodb-instance-no-auth arangodb:3.7.2
